@@ -18,6 +18,7 @@ from .features import extract_features
 from .load import load_audio
 
 CURVE_POINTS = 64
+ANALYZER_VERSION = 3  # bump when feature extraction changes, so stored reports are flagged as outdated
 
 
 def _ms(value: float | None) -> str:
@@ -35,6 +36,11 @@ def build_summary(features: dict[str, Any]) -> list[str]:
     if pitch["pitch_drop"]:
         lines.append("f0 drops from {start_hz} Hz to {end_hz} Hz, 90% of the way by {time_to_90pct_ms} ms.".format(**pitch["pitch_drop"]))
     lines.append(f"Attack (10% to -3 dB) {_ms(env['attack_ms'])}, peak at {_ms(env['peak_time_ms'])}; decay to -40 dB at {_ms(env['decay_to_minus40_ms'])}.")
+    if env.get("hold_ms") is not None:
+        lines.append(f"Flat top: level stays within 1 dB of the peak for {_ms(env['hold_ms'])}; -3 dB at {_ms(env['decay_to_minus3_ms'])}, -10 dB at {_ms(env['decay_to_minus10_ms'])}.")
+    thd = features["distortion"]["thd_pct"]
+    if thd is not None:
+        lines.append(f"Harmonic distortion (2nd-8th) {thd}% of the fundamental: {'clean' if thd < 2 else 'slightly saturated' if thd < 15 else 'saturated/distorted'}.")
     harmonics = spectrum["harmonics_db_relative"]
     if len(harmonics) >= 3:
         lines.append(f"Second/third harmonic {harmonics[1]} / {harmonics[2]} dB relative to the fundamental.")
@@ -65,7 +71,7 @@ def _analyze(path: Path) -> tuple[dict[str, Any], np.ndarray, int]:
 
 
 def _report(features: dict[str, Any]) -> dict[str, Any]:
-    return {"schema": 1, "summary": build_summary(features), "features": compact(features)}
+    return {"schema": 1, "analyzer": ANALYZER_VERSION, "summary": build_summary(features), "features": compact(features)}
 
 
 def analyze_file(path: Path) -> dict[str, Any]:

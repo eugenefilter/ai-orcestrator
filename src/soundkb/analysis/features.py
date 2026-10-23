@@ -116,13 +116,18 @@ def envelope_features(y: np.ndarray, sr: int, f0: float | None = None) -> dict[s
     i10 = np.flatnonzero(norm >= .1)
     i90 = np.flatnonzero(norm >= 10 ** (-3 / 20))
     attack = (times[i90[0]] - times[i10[0]]) * 1000 if i10.size and i90.size else None
+    near_peak = np.flatnonzero(norm >= 10 ** (-1 / 20))
+    hold = (times[near_peak[-1]] - times[near_peak[0]]) * 1000 if near_peak.size else None  # time spent within 1 dB of the peak
     after = 20 * np.log10(np.maximum(norm[peak_i:], 1e-12))
     below = np.flatnonzero(after < -40)  # the noise floor below -40 dB wobbles, so judge monotonicity above it
     audible = after[: below[0]] if below.size else after
     one_shot = bool(after[-1] < -20 and np.all(audible <= np.minimum.accumulate(audible) + 3))
     return {"env_times_s": [_round(t, 4) for t in times], "env_dbfs": [_round(_db(v), 2) for v in env],
             "attack_ms": _round(attack, 1), "peak_time_ms": _round(times[peak_i] * 1000, 1),
+            "hold_ms": _round(hold, 1), "decay_to_minus1_ms": _round(first_after(10 ** (-1 / 20), peak_i), 1),
+            "decay_to_minus3_ms": _round(first_after(10 ** (-3 / 20), peak_i), 1),
             "decay_to_minus6_ms": _round(first_after(10 ** (-6 / 20), peak_i), 1),
+            "decay_to_minus10_ms": _round(first_after(10 ** (-10 / 20), peak_i), 1),
             "decay_to_minus20_ms": _round(first_after(.1, peak_i), 1), "decay_to_minus40_ms": _round(first_after(.01, peak_i), 1),
             "tail_to_minus60_ms": _round(first_after(.001, peak_i), 1),
             "sustain_level_db": _round(_db(float(np.median(env[len(env) // 2:])) / peak), 1), "is_one_shot": one_shot}
@@ -153,6 +158,57 @@ def spectrum_features(y: np.ndarray, sr: int, f0: float | None) -> dict[str, Any
     return result
 
 
+def evolution_features(y: np.ndarray, sr: int, pitch: dict[str, Any], env: dict[str, Any]) -> list[dict[str, Any]]:
+    """Level, centroid and 2nd/3rd harmonic at fixed times: shows how the sound darkens as it decays.
+
+    Each window is 4 periods of f0 (at least 80 ms) centred on ``t``. Harmonics are the peak magnitude within
+    +-4% of ``k * f0`` (f0 taken from the pitch curve at ``t``), in dB relative to the fundamental.
+    """
+    steady = pitch["f0_steady"]
+    if not steady:
+        return []
+    peak_level = max(env["env_dbfs"])
+    times, f0s = np.array(pitch["times_s"]), np.array([np.nan if v is None else v for v in pitch["f0_hz"]])
+    out = []
+    for t in (.1, .25, .5, 1.0, 2.0):
+        ids = np.flatnonzero(np.isfinite(f0s))
+        if t > len(y) / sr or not ids.size:
+            continue
+        f0 = float(f0s[ids[np.argmin(np.abs(times[ids] - t))]])
+        n = int(sr * max(.08, 4 / f0))
+        center = int(t * sr)
+        seg = y[max(0, center - n // 2): center + n // 2]
+        if len(seg) < n // 2:
+            continue
+        spec = np.abs(np.fft.rfft(seg * np.hanning(len(seg))))
+        freqs = np.fft.rfftfreq(len(seg), 1 / sr)
+
+        def peak(freq: float) -> float:
+            half = max(freq * .04, 1.5 * (freqs[1] - freqs[0]))  # at least a couple of FFT bins wide
+            band = (freqs >= freq - half) & (freqs <= freq + half)
+            return float(spec[band].max()) if band.any() else 1e-12
+
+        fundamental = max(peak(f0), 1e-12)
+        env_db = env["env_dbfs"][min(int(t / .005), len(env["env_dbfs"]) - 1)]
+        out.append({"t_s": t, "level_db": _round(env_db - peak_level, 1), "f0_hz": _round(f0),
+                    "centroid_hz": _round(float(np.sum(freqs * spec) / max(np.sum(spec), 1e-12)), 1),
+                    "h2_db": _round(_db(peak(2 * f0) / fundamental), 1), "h3_db": _round(_db(peak(3 * f0) / fundamental), 1)})
+    return out
+
+
+def thd_percent(harmonics_db: list[float | None]) -> float | None:
+    """Total harmonic distortion of harmonics 2..8 relative to the fundamental, in percent."""
+    levels = [10 ** (v / 20) for v in harmonics_db[1:8] if v is not None]
+    return _round(100 * math.sqrt(sum(v * v for v in levels)), 2) if levels else None
+
+
+def texture_features(y: np.ndarray) -> dict[str, Any]:
+    """Share of percussive (transient/noisy) energy; near 0 for tones, high for hats and noise bursts."""
+    harmonic, percussive = librosa.effects.hpss(y)
+    e_h, e_p = float(np.sum(harmonic**2)), float(np.sum(percussive**2))
+    return {"percussive_ratio": _round(e_p / max(e_h + e_p, 1e-18), 4)}
+
+
 def extract_features(y: np.ndarray, channels: np.ndarray, sr: int, *, fmin: float = 20, fmax: float = 2000) -> dict[str, Any]:
     """Extract all deterministic report features from float32 mono audio."""
     pitch = pitch_features(y, sr, fmin, fmax)
@@ -160,5 +216,7 @@ def extract_features(y: np.ndarray, channels: np.ndarray, sr: int, *, fmin: floa
     spectrum = spectrum_features(y, sr, pitch["f0_steady"])
     crest = float(np.max(np.abs(y)) / max(np.sqrt(np.mean(y**2)), 1e-12))
     return {"meta": meta_features(y, channels, sr), "pitch": pitch, "envelope": envelope, "spectrum": spectrum,
-            "distortion": {"crest_factor_db": _round(_db(crest), 2), "clipping": bool(np.max(np.abs(y)) >= .999), "thd_estimate": None},
+            "distortion": {"crest_factor_db": _round(_db(crest), 2), "clipping": bool(np.max(np.abs(y)) >= .999),
+                          "thd_pct": thd_percent(spectrum["harmonics_db_relative"])},
+            "evolution": evolution_features(y, sr, pitch, envelope), "texture": texture_features(y),
             "modulation": {"pitch": None, "amplitude": None}, "onset_rhythm": {"onsets_s": [], "tempo_bpm": None}}

@@ -29,6 +29,8 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--tag", action="append", default=[])
     search.add_argument("--kind")
     search.add_argument("--limit", type=int, default=5)
+    reanalyze = sub.add_parser("reanalyze", help="Re-run the current analysis on stored sounds")
+    reanalyze.add_argument("--all", action="store_true", help="also entries that are already up to date")
     compare = sub.add_parser("compare", help="Compare a rendered candidate with a reference file")
     compare.add_argument("reference", type=Path)
     compare.add_argument("candidate", type=Path)
@@ -51,7 +53,12 @@ def main() -> None:
 
         try:
             kb = KnowledgeBase(load_settings())
-            if args.command == "ingest":
+            if args.command == "reanalyze":
+                updated = kb.reanalyze_outdated(force=args.all)
+                print(f"re-analyzed {len(updated)} entr{'y' if len(updated) == 1 else 'ies'}")
+                for item in updated:
+                    print(f"- {item['title']} ({item['id']})\n  " + "\n  ".join(item["summary"]))
+            elif args.command == "ingest":
                 entry = kb.ingest_audio(args.path.expanduser().resolve(), args.title, args.tag, args.note, allow_long=args.allow_long)
                 print(f"id: {entry['id']}\n" + "\n".join(entry["analysis"]["summary"]))
             else:

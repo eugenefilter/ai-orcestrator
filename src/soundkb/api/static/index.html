@@ -69,7 +69,7 @@ summary{cursor:pointer;font-weight:600;font-size:13px}
 .item:hover{border-color:var(--accent);transform:translateY(-1px)}
 .item h3{margin:0 0 4px;font-size:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .badge{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:2px 8px;border-radius:99px;color:#fff}
-.badge.sound{background:var(--sound)}.badge.note{background:var(--note)}.badge.device_map{background:var(--device_map)}
+.badge.sound{background:var(--sound)}.badge.note{background:var(--note)}.badge.device_map{background:var(--device_map)}.badge.old{background:var(--danger)}
 .item p{margin:2px 0 8px;color:var(--muted);font-size:13.5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .mini{display:flex;gap:6px;flex-wrap:wrap}.mini .chip{font-size:12px;padding:2px 8px}
 .empty{padding:40px 16px;text-align:center;color:var(--muted)}
@@ -154,6 +154,7 @@ pre{margin:8px 0 0;padding:12px;border-radius:10px;background:var(--panel2);bord
         <select id="kindFilter" class="btn ghost small" style="font-weight:600">
           <option value="">All kinds</option><option value="sound">Sounds</option><option value="note">Notes</option><option value="device_map">Device maps</option>
         </select>
+        <button class="btn small" id="reAll" hidden>Re-analyze outdated</button>
       </div>
       <div class="tags-row" id="tagFilters"></div>
       <div class="list" id="list"></div>
@@ -277,15 +278,18 @@ async function loadList(){
   state.filterTags.forEach(t=>p.append('tag',t));
   try{
     const items=await api('/api/entries?'+p);
+    const stale=items.filter(i=>i.outdated).length;$('reAll').hidden=!stale;$('reAll').textContent='Re-analyze outdated ('+stale+')';
     $('list').innerHTML=items.length?items.map(card).join(''):'<div class="empty">Nothing here yet.<br>Add a sound on the left, or change the search.</div>';
     document.querySelectorAll('.item').forEach(i=>i.onclick=()=>openEntry(i.dataset.id));
   }catch(e){$('list').innerHTML=`<div class="empty">${esc(e.message)}</div>`}
 }
 function card(x){
   const text=x.summary?.length?x.summary.slice(1,4).join(' '):x.notes;
-  return `<button class="item" data-id="${x.id}"><h3>${esc(x.title)}<span class="badge ${x.kind}">${x.kind.replace('_',' ')}</span>${x.score!=null?`<small style="color:var(--muted);font-weight:400">${x.score}</small>`:''}</h3>
+  return `<button class="item" data-id="${x.id}"><h3>${esc(x.title)}<span class="badge ${x.kind}">${x.kind.replace('_',' ')}</span>${x.outdated?'<span class="badge old" title="Analyzed by an older version">outdated</span>':''}${x.score!=null?`<small style="color:var(--muted);font-weight:400">${x.score}</small>`:''}</h3>
   ${text?`<p>${esc(text)}</p>`:''}<div class="mini">${x.tags.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}${x.recipes.length?`<span class="chip filter">${x.recipes.length} recipe${x.recipes.length>1?'s':''}</span>`:''}</div></button>`;
 }
+$('reAll').onclick=async()=>{const b=$('reAll');b.disabled=true;b.textContent='Analyzing…';
+  try{const r=await api('/api/reanalyze-outdated',{method:'POST'});toast('Re-analyzed '+r.updated.length+' entries');await refresh()}catch(err){toast(err.message,true)}finally{b.disabled=false}};
 async function refresh(){await Promise.all([loadTags(),loadList()])}
 
 /* ---- drawer ---- */
@@ -305,7 +309,7 @@ async function openEntry(id){
   try{
     const e=await api('/api/entries/'+id);state.current=e;state.editTags=[...e.tags];
     drawer.innerHTML=`<div class="head"><div><span class="badge ${e.kind}">${e.kind.replace('_',' ')}</span><h1>${esc(e.title)}</h1></div>
-      <button class="btn ghost small" id="close">Close</button></div>
+      <div class="row">${e.audio_path?'<button class="btn ghost small" id="reanalyze">Re-analyze</button>':''}<button class="btn ghost small" id="close">Close</button></div></div>
       ${e.audio_path?`<audio controls src="/api/entries/${id}/audio"></audio>`:''}
       ${stats(e.analysis)}
       ${e.analysis?`<ul class="summary">${e.analysis.summary.map(l=>`<li>${esc(l)}</li>`).join('')}</ul>
@@ -323,6 +327,8 @@ async function openEntry(id){
       ${e.source_path?`<div class="hint" style="margin-top:14px">Source: ${esc(e.source_path)} · id ${id}</div>`:`<div class="hint" style="margin-top:14px">id ${id}</div>`}`;
     const box=$('eTagBox'),inp=$('eTagInput');bindChips(box,inp,state.editTags);renderChips(box,inp,state.editTags);
     $('close').onclick=closeDrawer;
+    if($('reanalyze'))$('reanalyze').onclick=async()=>{const b=$('reanalyze');b.disabled=true;b.textContent='Analyzing…';
+      try{await api('/api/entries/'+id+'/reanalyze',{method:'POST'});toast('Re-analyzed');await refresh();openEntry(id)}catch(err){toast(err.message,true);b.disabled=false;b.textContent='Re-analyze'}};
     $('save').onclick=()=>patch(id,{title:$('eTitle').value,tags:state.editTags,notes:$('eNotes').value},'Saved');
     $('del').onclick=async()=>{if(!confirm('Delete "'+e.title+'" and its files?'))return;await api('/api/entries/'+id,{method:'DELETE'});closeDrawer();toast('Deleted');refresh()};
     drawer.querySelectorAll('.rm').forEach(b=>b.onclick=()=>patch(id,{recipes:e.patch_recipes.filter((_,i)=>i!=b.dataset.i)},'Recipe removed'));

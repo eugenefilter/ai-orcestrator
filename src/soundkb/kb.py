@@ -14,7 +14,7 @@ import soundfile as sf
 from pydantic import ValidationError
 from qdrant_client import QdrantClient
 
-from .analysis.report import write_report
+from .analysis.report import ANALYZER_VERSION, write_report
 from .config import Settings
 from .store import qdrant_store as qs
 from .store.embed import embed
@@ -31,13 +31,13 @@ class KBError(ValueError):
 
 
 def resolve_allowed(value: str | Path, settings: Settings) -> Path:
-    """Resolve symlinks and ``..``, then require an existing audio file under ``ALLOWED_INGEST_DIRS``."""
+    """Resolve symlinks and ``..``, then require an existing audio file under ``ALLOWED_INGEST_DIRS`` or ``DATA_DIR`` (renders)."""
     path = Path(value).expanduser().resolve()
     if not path.is_file():
         raise KBError(f"Audio file does not exist: {path}")
     if path.suffix.lower() not in AUDIO_SUFFIXES:
         raise KBError("Supported formats: WAV, AIFF, FLAC, MP3.")
-    if not any(path.is_relative_to(root) for root in settings.allowed_ingest_dirs):
+    if not any(path.is_relative_to(root) for root in (*settings.allowed_ingest_dirs, settings.data_dir)):
         raise KBError("Path is outside ALLOWED_INGEST_DIRS (see .env).")
     return path
 
@@ -129,6 +129,22 @@ class KnowledgeBase:
         entry.patch_recipes = [r for r in entry.patch_recipes if r.name != recipe.name] + [recipe]
         return self._save(point_id, entry)
 
+    def reanalyze(self, point_id: str) -> dict[str, Any]:
+        """Re-run the current analysis on the stored audio and refresh the entry (tags, notes and recipes are kept)."""
+        entry = self._load(point_id)
+        if not entry.audio_path or not Path(entry.audio_path).is_file():
+            raise KBError("This entry has no stored audio to analyze.")
+        entry.analysis = write_report(Path(entry.audio_path), self.analysis_dir / Path(entry.audio_path).stem)
+        return self._save(point_id, entry)
+
+    def reanalyze_outdated(self, force: bool = False) -> list[dict[str, Any]]:
+        """Re-analyze every sound whose report predates ``ANALYZER_VERSION`` (all sounds with ``force``)."""
+        done = []
+        for point_id, payload in qs.scroll(self.client, qs.build_filter(kind="sound")):
+            if force or (payload.get("analysis") or {}).get("analyzer", 1) < ANALYZER_VERSION:
+                done.append({"id": point_id, "title": payload.get("title")} | {"summary": self.reanalyze(point_id)["analysis"]["summary"]})
+        return done
+
     def delete(self, point_id: str) -> None:
         entry = self._load(point_id)
         if entry.audio_path:
@@ -169,7 +185,8 @@ class KnowledgeBase:
         return {"id": point_id, "score": None if score is None else round(score, 3), "kind": payload.get("kind"),
                 "title": payload.get("title"), "tags": payload.get("tags", []), "notes": payload.get("notes", ""),
                 "summary": analysis.get("summary", []), "recipes": [r["name"] for r in payload.get("patch_recipes", [])],
-                "has_audio": bool(payload.get("audio_path")), "updated_at": payload.get("updated_at")}
+                "has_audio": bool(payload.get("audio_path")),
+                "outdated": bool(analysis) and analysis.get("analyzer", 1) < ANALYZER_VERSION, "updated_at": payload.get("updated_at")}
 
     def tags(self) -> list[dict[str, Any]]:
         counts: dict[str, int] = {}

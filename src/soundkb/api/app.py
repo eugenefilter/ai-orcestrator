@@ -124,6 +124,22 @@ def patch_entry(point_id: str, body: EntryPatch) -> dict[str, Any]:
         raise HTTPException(404, str(exc)) from exc
 
 
+@app.post("/api/entries/{point_id}/reanalyze")
+def reanalyze_entry(point_id: str) -> dict[str, Any]:
+    try:
+        return kb().reanalyze(entry_id(point_id))
+    except KBError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.post("/api/reanalyze-outdated")
+def reanalyze_outdated() -> dict[str, Any]:
+    try:
+        return {"updated": kb().reanalyze_outdated()}
+    except KBError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
 @app.delete("/api/entries/{point_id}")
 def remove_entry(point_id: str) -> dict[str, bool]:
     try:

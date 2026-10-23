@@ -35,10 +35,10 @@ def test_shorter_decay_and_detuned_is_worse_and_explained(tmp_path):
     far_result = compare_audio_files(ref, far)
     assert far_result["distance"] > d_near + 0.3
     text = " ".join(far_result["advice"]).lower()
-    assert "cents" in text and "decay" in text
+    assert "semitones" in text and "transpose" in text and "decay" in text
 
 
-def test_missing_harmonics_hint(tmp_path):
+def test_missing_harmonics_suggests_saturation(tmp_path):
     ref = _tone(tmp_path / "ref.wav", harmonics=[(3, 0.4), (5, 0.3)])
     cand = _tone(tmp_path / "cand.wav")
-    assert any("harmonics" in line.lower() for line in compare_audio_files(ref, cand)["advice"])
+    assert any("saturator" in line.lower() for line in compare_audio_files(ref, cand)["advice"])

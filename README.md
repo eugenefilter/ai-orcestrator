@@ -25,3 +25,16 @@ claude mcp add soundkb -- uv run --directory "/Users/eugene/Documents/Ableton/AI
 
 Docs: `docs/AGENT_BRIEF.md` (build brief), `docs/AGENT_USAGE.md` (how an agent uses the base),
 `docs/PATCH_RECIPE.md` (recipe schema). Copy `.env.example` to `.env` to change ports or allowed folders.
+
+## Automatic renders (record_render, calibrate_param, optimize_patch)
+
+The Ableton MCP cannot export audio, so SoundKB records Live's output through a virtual device (BlackHole 2ch,
+`ffmpeg` with avfoundation). One-time setup:
+
+1. Audio MIDI Setup > "+" > Create Multi-Output Device: tick your headphones/speakers and BlackHole 2ch
+   (headphones first, enable Drift Correction on BlackHole).
+2. Live > Preferences > Audio > Output Device: choose that Multi-Output Device (or BlackHole 2ch itself to record silently).
+3. Check: `uv run python -c "from soundkb.record import list_audio_devices as d; print(d())"` lists BlackHole 2ch.
+
+`record_render` stops the transport, starts ffmpeg, fires the clip through the Remote Script (port 9877), stops the clip and
+trims the leading silence. If it captures silence it says so; the routing in step 2 is then missing.

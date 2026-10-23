@@ -17,6 +17,8 @@ class Settings:
     data_dir: Path
     ui_port: int
     allowed_ingest_dirs: tuple[Path, ...]
+    ableton_port: int = 9877
+    audio_input: str = "BlackHole 2ch"
 
 
 def load_settings(env_file: Path | None = None) -> Settings:
@@ -35,4 +37,6 @@ def load_settings(env_file: Path | None = None) -> Settings:
         data_dir=data_dir,
         ui_port=int(os.getenv("UI_PORT", "8766")),
         allowed_ingest_dirs=allowed_dirs,
+        ableton_port=int(os.getenv("ABLETON_PORT", "9877")),
+        audio_input=os.getenv("AUDIO_INPUT", "BlackHole 2ch"),
     )
