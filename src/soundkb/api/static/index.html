@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SoundKB</title>
+<style>
+:root{
+  --bg:#f4f5f8;--panel:#fff;--panel2:#f0f2f6;--line:#dde1ea;--text:#171a22;--muted:#677087;
+  --accent:#0f9d78;--accent-ink:#fff;--accent-soft:#dff5ee;--danger:#c93c3c;--shadow:0 1px 2px rgba(20,25,40,.06),0 8px 24px rgba(20,25,40,.06);
+  --sound:#2b7de0;--note:#a05bd6;--device_map:#d98a1f;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#0e1015;--panel:#171a22;--panel2:#1e222c;--line:#2b303c;--text:#eceef4;--muted:#8d96ab;
+  --accent:#3ddba9;--accent-ink:#04261b;--accent-soft:#163a2f;--danger:#ff7a7a;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 28px rgba(0,0,0,.35);
+}}
+:root[data-theme=dark]{--bg:#0e1015;--panel:#171a22;--panel2:#1e222c;--line:#2b303c;--text:#eceef4;--muted:#8d96ab;--accent:#3ddba9;--accent-ink:#04261b;--accent-soft:#163a2f;--danger:#ff7a7a;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 28px rgba(0,0,0,.35)}
+*{box-sizing:border-box}
+html{color-scheme:light dark}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+button,input,textarea,select{font:inherit;color:inherit}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:12px 24px;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px;letter-spacing:-.01em}
+.logo svg{width:26px;height:26px}
+.status{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.dot.ok{background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.dot.bad{background:var(--danger)}
+main{display:grid;grid-template-columns:minmax(340px,430px) 1fr;gap:24px;max-width:1300px;margin:0 auto;padding:24px}
+@media(max-width:900px){main{grid-template-columns:1fr;padding:16px}header{padding:10px 16px}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:20px}
+h2{margin:0 0 14px;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.seg{display:grid;grid-auto-flow:column;gap:4px;padding:4px;background:var(--panel2);border-radius:12px;margin-bottom:16px}
+.seg button{border:0;background:none;padding:8px 10px;border-radius:9px;cursor:pointer;color:var(--muted);font-weight:600}
+.seg button[aria-pressed=true]{background:var(--panel);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:26px 16px;border:2px dashed var(--line);border-radius:14px;background:var(--panel2);cursor:pointer;text-align:center;transition:.15s}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop svg{width:30px;height:30px;color:var(--accent)}
+.drop b{font-weight:600}.drop small{color:var(--muted)}
+.drop.has{border-style:solid;border-color:var(--accent);background:var(--accent-soft)}
+label{display:block;margin:14px 0 6px;font-size:13px;font-weight:600}
+label span{font-weight:400;color:var(--muted)}
+input[type=text],textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);outline:none}
+input[type=text]:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+textarea{resize:vertical;min-height:84px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:7px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.chips:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.chips input{flex:1;min-width:90px;border:0;background:none;outline:none;padding:3px 4px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:99px;background:var(--accent-soft);color:var(--accent);font-size:13px;font-weight:600}
+.chip button{border:0;background:none;color:inherit;cursor:pointer;padding:0;line-height:1;font-size:15px}
+.chip.filter{cursor:pointer;background:var(--panel2);color:var(--muted);border:1px solid var(--line)}
+.chip.filter.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+details{margin-top:14px;border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--panel2)}
+summary{cursor:pointer;font-weight:600;font-size:13px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 18px;border:0;border-radius:11px;background:var(--accent);color:var(--accent-ink);font-weight:700;cursor:pointer}
+.btn:hover{filter:brightness(1.05)}.btn:disabled{opacity:.55;cursor:wait}
+.btn.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line);font-weight:600}
+.btn.danger{background:none;color:var(--danger);border:1px solid var(--danger)}
+.btn.small{padding:6px 11px;font-size:13px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.hint{font-size:12.5px;color:var(--muted);margin-top:6px}
+.hint.err{color:var(--danger)}.hint.ok{color:var(--accent)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.toolbar input{flex:1;min-width:180px}
+.tags-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.list{display:grid;gap:10px}
+.item{display:block;width:100%;text-align:left;padding:14px 16px;border:1px solid var(--line);border-radius:13px;background:var(--panel);cursor:pointer;transition:.12s}
+.item:hover{border-color:var(--accent);transform:translateY(-1px)}
+.item h3{margin:0 0 4px;font-size:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.badge{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:2px 8px;border-radius:99px;color:#fff}
+.badge.sound{background:var(--sound)}.badge.note{background:var(--note)}.badge.device_map{background:var(--device_map)}
+.item p{margin:2px 0 8px;color:var(--muted);font-size:13.5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mini{display:flex;gap:6px;flex-wrap:wrap}.mini .chip{font-size:12px;padding:2px 8px}
+.empty{padding:40px 16px;text-align:center;color:var(--muted)}
+.scrim{position:fixed;inset:0;background:rgba(5,8,14,.55);z-index:20;display:none}
+.scrim.open{display:block}
+aside{position:fixed;top:0;right:0;bottom:0;width:min(760px,100%);background:var(--bg);border-left:1px solid var(--line);z-index:21;transform:translateX(102%);transition:transform .22s;overflow-y:auto;padding:22px}
+aside.open{transform:none}
+.head{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;margin-bottom:14px}
+.head h1{margin:0;font-size:22px;letter-spacing:-.01em}
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin:14px 0}
+.stat{padding:12px;border-radius:12px;background:var(--panel);border:1px solid var(--line)}
+.stat small{display:block;color:var(--muted);font-size:12px}.stat b{font-size:18px}
+audio{width:100%;margin:8px 0}
+img.report{width:100%;border-radius:12px;border:1px solid var(--line);background:#fff}
+.summary li{margin:3px 0}
+pre{margin:8px 0 0;padding:12px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);overflow:auto;max-height:260px}
+.sec{margin-top:20px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);padding:11px 18px;border-radius:12px;background:var(--text);color:var(--bg);font-weight:600;opacity:0;pointer-events:none;transition:.2s;z-index:40;max-width:90vw}
+.toast.show{opacity:1;transform:translateX(-50%)}.toast.err{background:var(--danger);color:#fff}
+.spin{width:15px;height:15px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:s .7s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 32 32" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round"><path d="M3 16h3M9 9v14M14 4v24M19 10v12M24 13v6M29 16h0"/></svg>
+    SoundKB
+  </div>
+  <div class="status"><span id="dot" class="dot"></span><span id="statusText">connecting…</span></div>
+</header>
+
+<main>
+  <section class="card" id="addCard">
+    <h2>Add to knowledge base</h2>
+    <div class="seg" id="kindSeg">
+      <button type="button" data-kind="sound" aria-pressed="true">Sound</button>
+      <button type="button" data-kind="note" aria-pressed="false">Note</button>
+      <button type="button" data-kind="device_map" aria-pressed="false">Device map</button>
+    </div>
+
+    <div id="audioBlock">
+      <div class="drop" id="drop" tabindex="0">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+        <b id="dropTitle">Drop an audio file here</b>
+        <small id="dropSub">or click to choose · WAV, AIFF, FLAC, MP3 · up to 100 MB</small>
+      </div>
+      <input type="file" id="file" accept="audio/*,.wav,.aif,.aiff,.flac,.mp3" hidden>
+      <label for="path">…or a local path <span>(inside the allowed folders)</span></label>
+      <input type="text" id="path" placeholder="/Users/you/Documents/Ableton/Loops/kick.wav" spellcheck="false">
+      <div class="hint" id="allowed"></div>
+    </div>
+
+    <label for="title">Title <span id="titleOpt">(optional, defaults to the file name)</span></label>
+    <input type="text" id="title" placeholder="Dark sub 808 in C">
+
+    <label>Tags <span>(Enter or comma adds a tag)</span></label>
+    <div class="chips" id="tagBox"><input id="tagInput" list="tagList" placeholder="808, sub, bass" autocomplete="off"></div>
+    <datalist id="tagList"></datalist>
+
+    <label for="notes" id="notesLabel">Extra knowledge <span>(any language)</span></label>
+    <textarea id="notes" placeholder="What is special about this sound, how it is used, what to remember…"></textarea>
+
+    <details id="recipeBox">
+      <summary>Patch recipe <span style="font-weight:400;color:var(--muted)">(optional JSON)</span></summary>
+      <textarea id="recipe" class="mono" spellcheck="false" placeholder='{"name":"…","target":{"device":"Operator"},"params":[]}'></textarea>
+      <div class="row" style="margin-top:8px"><button type="button" class="btn ghost small" id="tpl">Insert template</button><span class="hint" id="recipeHint"></span></div>
+    </details>
+
+    <div class="row" style="margin-top:18px">
+      <button class="btn" id="submit" type="button">Analyze &amp; save</button>
+      <label style="margin:0;font-weight:400;display:flex;gap:6px;align-items:center"><input type="checkbox" id="long"> allow clips over 60 s</label>
+    </div>
+    <div class="hint" id="formHint"></div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>Library</h2>
+      <div class="toolbar">
+        <input type="text" id="q" placeholder="Search by meaning: deep 808 with pitch drop…">
+        <select id="kindFilter" class="btn ghost small" style="font-weight:600">
+          <option value="">All kinds</option><option value="sound">Sounds</option><option value="note">Notes</option><option value="device_map">Device maps</option>
+        </select>
+      </div>
+      <div class="tags-row" id="tagFilters"></div>
+      <div class="list" id="list"></div>
+    </div>
+  </section>
+</main>
+
+<div class="scrim" id="scrim"></div>
+<aside id="drawer" aria-label="Entry details"></aside>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const state = {kind:'sound', tags:[], filterTags:new Set(), file:null, current:null, editTags:[]};
+
+function toast(msg, err){const t=$('toast');t.textContent=msg;t.className='toast show'+(err?' err':'');clearTimeout(toast.t);toast.t=setTimeout(()=>t.className='toast',err?5000:2600)}
+async function api(url, opts){
+  const r = await fetch(url, opts); let d = null;
+  try{d = await r.json()}catch(e){}
+  if(!r.ok) throw new Error((d && (d.detail?.[0]?.msg || d.detail)) || r.statusText);
+  return d;
+}
+
+/* ---- status ---- */
+async function health(){
+  try{const h=await api('/api/health');$('dot').className='dot ok';$('statusText').textContent='Qdrant connected';
+    $('allowed').textContent='Allowed: '+h.allowed_dirs.join('  ·  ')}
+  catch(e){$('dot').className='dot bad';$('statusText').textContent=e.message.length>70?'Qdrant unreachable':e.message}
+}
+
+/* ---- kind switch ---- */
+document.querySelectorAll('#kindSeg button').forEach(b=>b.onclick=()=>{
+  state.kind=b.dataset.kind;
+  document.querySelectorAll('#kindSeg button').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  const sound=state.kind==='sound';
+  $('audioBlock').hidden=!sound;
+  $('titleOpt').textContent=sound?'(optional, defaults to the file name)':'(required)';
+  $('notesLabel').firstChild.textContent=sound?'Extra knowledge ':'Text ';
+  $('submit').textContent=sound?'Analyze & save':'Save';
+});
+
+/* ---- file picking ---- */
+const drop=$('drop');
+function setFile(f){
+  state.file=f; drop.classList.toggle('has',!!f);
+  $('dropTitle').textContent=f?f.name:'Drop an audio file here';
+  $('dropSub').textContent=f?(f.size/1048576).toFixed(1)+' MB · click to change':'or click to choose · WAV, AIFF, FLAC, MP3 · up to 100 MB';
+  if(f) $('path').value='';
+}
+drop.onclick=()=>$('file').click();
+drop.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('file').click()}};
+$('file').onchange=e=>setFile(e.target.files[0]||null);
+['dragenter','dragover'].forEach(n=>drop.addEventListener(n,e=>{e.preventDefault();drop.classList.add('over')}));
+['dragleave','drop'].forEach(n=>drop.addEventListener(n,e=>{e.preventDefault();drop.classList.remove('over')}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)setFile(f)});
+$('path').oninput=()=>{if($('path').value)setFile(null)};
+
+/* ---- chips (generic) ---- */
+function renderChips(box, input, list){
+  box.querySelectorAll('.chip').forEach(c=>c.remove());
+  list.forEach((t,i)=>{
+    const c=document.createElement('span');c.className='chip';c.innerHTML=esc(t)+' <button type="button" aria-label="Remove">×</button>';
+    c.querySelector('button').onclick=()=>{list.splice(i,1);renderChips(box,input,list)};
+    box.insertBefore(c,input);
+  });
+}
+function bindChips(box, input, list){
+  const add=()=>{input.value.split(',').map(s=>s.trim().toLowerCase().replace(/\s+/g,'-')).filter(Boolean).forEach(t=>{if(!list.includes(t))list.push(t)});input.value='';renderChips(box,input,list)};
+  input.onkeydown=e=>{if(e.key==='Enter'||e.key===','){e.preventDefault();add()}else if(e.key==='Backspace'&&!input.value&&list.length){list.pop();renderChips(box,input,list)}};
+  input.onblur=add; box.onclick=()=>input.focus();
+}
+bindChips($('tagBox'),$('tagInput'),state.tags);
+
+/* ---- recipe ---- */
+const TEMPLATE={name:"Sub 808 via Operator",target:{live_version:"11.3",device:"Operator",browser_uri:"query:Synths#Operator"},params:[{name:"Osc A Level",index:null,value:0.85,value_display:"-3 dB"}],chain:[],midi:{note:36,velocity:100,length_beats:4},verified:null,confidence:"guess"};
+$('tpl').onclick=()=>{$('recipe').value=JSON.stringify(TEMPLATE,null,2);checkRecipe()};
+function checkRecipe(){
+  const v=$('recipe').value.trim(),h=$('recipeHint');
+  if(!v){h.textContent='';h.className='hint';return true}
+  try{const j=JSON.parse(v);if(!j.name||!j.target||!j.target.device)throw Error('needs "name" and "target.device"');h.textContent='Looks valid';h.className='hint ok';return true}
+  catch(e){h.textContent=e.message;h.className='hint err';return false}
+}
+$('recipe').oninput=checkRecipe;
+
+/* ---- submit ---- */
+$('submit').onclick=async()=>{
+  const sound=state.kind==='sound';
+  if(!checkRecipe())return toast('Fix the recipe JSON first',true);
+  if(sound&&!state.file&&!$('path').value.trim())return toast('Choose an audio file or enter a path',true);
+  if(!sound&&!$('title').value.trim())return toast('Title is required',true);
+  const f=new FormData();
+  f.append('kind',state.kind);f.append('title',$('title').value);f.append('tags',state.tags.join(','));
+  f.append('notes',$('notes').value);f.append('patch_recipe',$('recipe').value);f.append('allow_long',$('long').checked);
+  if(sound){if(state.file)f.append('file',state.file);else f.append('path',$('path').value)}
+  const b=$('submit'),label=b.textContent;b.disabled=true;b.innerHTML='<span class="spin"></span> Working…';
+  try{
+    const e=await api('/api/entries',{method:'POST',body:f});
+    toast('Saved: '+e.title);resetForm();await refresh();openEntry(e.id);
+  }catch(err){toast(err.message,true);$('formHint').textContent=err.message;$('formHint').className='hint err'}
+  finally{b.disabled=false;b.textContent=label}
+};
+function resetForm(){
+  setFile(null);$('file').value='';$('path').value='';$('title').value='';$('notes').value='';$('recipe').value='';checkRecipe();
+  state.tags.length=0;renderChips($('tagBox'),$('tagInput'),state.tags);$('formHint').textContent='';$('formHint').className='hint';
+}
+
+/* ---- library ---- */
+let timer;
+$('q').oninput=()=>{clearTimeout(timer);timer=setTimeout(loadList,250)};
+$('kindFilter').onchange=loadList;
+async function loadTags(){
+  const tags=await api('/api/tags').catch(()=>[]);
+  $('tagList').innerHTML=tags.map(t=>`<option value="${esc(t.tag)}">`).join('');
+  $('tagFilters').innerHTML=tags.slice(0,24).map(t=>`<span class="chip filter ${state.filterTags.has(t.tag)?'on':''}" data-t="${esc(t.tag)}">${esc(t.tag)} · ${t.count}</span>`).join('');
+  document.querySelectorAll('#tagFilters .chip').forEach(c=>c.onclick=()=>{const t=c.dataset.t;state.filterTags.has(t)?state.filterTags.delete(t):state.filterTags.add(t);loadTags();loadList()});
+}
+async function loadList(){
+  const p=new URLSearchParams();if($('q').value.trim())p.set('q',$('q').value.trim());
+  if($('kindFilter').value)p.set('kind',$('kindFilter').value);
+  state.filterTags.forEach(t=>p.append('tag',t));
+  try{
+    const items=await api('/api/entries?'+p);
+    $('list').innerHTML=items.length?items.map(card).join(''):'<div class="empty">Nothing here yet.<br>Add a sound on the left, or change the search.</div>';
+    document.querySelectorAll('.item').forEach(i=>i.onclick=()=>openEntry(i.dataset.id));
+  }catch(e){$('list').innerHTML=`<div class="empty">${esc(e.message)}</div>`}
+}
+function card(x){
+  const text=x.summary?.length?x.summary.slice(1,4).join(' '):x.notes;
+  return `<button class="item" data-id="${x.id}"><h3>${esc(x.title)}<span class="badge ${x.kind}">${x.kind.replace('_',' ')}</span>${x.score!=null?`<small style="color:var(--muted);font-weight:400">${x.score}</small>`:''}</h3>
+  ${text?`<p>${esc(text)}</p>`:''}<div class="mini">${x.tags.map(t=>`<span class="chip">${esc(t)}</span>`).join('')}${x.recipes.length?`<span class="chip filter">${x.recipes.length} recipe${x.recipes.length>1?'s':''}</span>`:''}</div></button>`;
+}
+async function refresh(){await Promise.all([loadTags(),loadList()])}
+
+/* ---- drawer ---- */
+const drawer=$('drawer'),scrim=$('scrim');
+function closeDrawer(){drawer.classList.remove('open');scrim.classList.remove('open')}
+scrim.onclick=closeDrawer;document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer()});
+const n=(v,u='')=>v==null?'–':v+u;
+function stats(a){
+  if(!a)return'';const f=a.features,p=f.pitch,e=f.envelope,s=f.spectrum,m=f.meta;
+  const t=[['Pitch',p.f0_steady?`${p.f0_steady} Hz · ${p.note}`:'–'],
+    ['Pitch drop',p.pitch_drop?`${p.pitch_drop.start_hz}→${p.pitch_drop.end_hz} Hz in ${p.pitch_drop.time_to_90pct_ms} ms`:'none'],
+    ['Attack',n(e.attack_ms,' ms')],['Decay −40 dB',n(e.decay_to_minus40_ms,' ms')],
+    ['Sub (<60 Hz)',n(s.band_energy_pct.sub,' %')],['Loudness',n(m.integrated_lufs,' LUFS')],['Length',n(m.duration_s,' s')]];
+  return `<div class="stats">${t.map(([k,v])=>`<div class="stat"><small>${k}</small><b style="font-size:${String(v).length>16?14:18}px">${esc(v)}</b></div>`).join('')}</div>`;
+}
+async function openEntry(id){
+  try{
+    const e=await api('/api/entries/'+id);state.current=e;state.editTags=[...e.tags];
+    drawer.innerHTML=`<div class="head"><div><span class="badge ${e.kind}">${e.kind.replace('_',' ')}</span><h1>${esc(e.title)}</h1></div>
+      <button class="btn ghost small" id="close">Close</button></div>
+      ${e.audio_path?`<audio controls src="/api/entries/${id}/audio"></audio>`:''}
+      ${stats(e.analysis)}
+      ${e.analysis?`<ul class="summary">${e.analysis.summary.map(l=>`<li>${esc(l)}</li>`).join('')}</ul>
+        <img class="report" alt="Analysis report" src="/api/entries/${id}/report.png">`:''}
+      <div class="sec card"><h2>Edit</h2>
+        <label for="eTitle" style="margin-top:0">Title</label><input type="text" id="eTitle" value="${esc(e.title)}">
+        <label>Tags</label><div class="chips" id="eTagBox"><input id="eTagInput" list="tagList" autocomplete="off" placeholder="add tag"></div>
+        <label for="eNotes">${e.kind==='sound'?'Extra knowledge':'Text'}</label><textarea id="eNotes" rows="6">${esc(e.notes)}</textarea>
+        <div class="row" style="margin-top:14px"><button class="btn" id="save">Save changes</button><button class="btn danger small" id="del">Delete</button></div></div>
+      <div class="sec card"><h2>Patch recipes (${e.patch_recipes.length})</h2>
+        ${e.patch_recipes.map((r,i)=>`<details><summary>${esc(r.name)} · ${esc(r.target.device)} · ${esc(r.confidence)}</summary><pre class="mono">${esc(JSON.stringify(r,null,2))}</pre>
+          <button class="btn danger small rm" data-i="${i}" style="margin-top:8px">Remove</button></details>`).join('')||'<div class="hint">No recipes yet. An agent can save one with save_patch_recipe.</div>'}
+        <label>Add recipe (JSON)</label><textarea id="eRecipe" class="mono" rows="5" spellcheck="false"></textarea>
+        <button class="btn ghost small" id="addRecipe" style="margin-top:8px">Add recipe</button></div>
+      ${e.source_path?`<div class="hint" style="margin-top:14px">Source: ${esc(e.source_path)} · id ${id}</div>`:`<div class="hint" style="margin-top:14px">id ${id}</div>`}`;
+    const box=$('eTagBox'),inp=$('eTagInput');bindChips(box,inp,state.editTags);renderChips(box,inp,state.editTags);
+    $('close').onclick=closeDrawer;
+    $('save').onclick=()=>patch(id,{title:$('eTitle').value,tags:state.editTags,notes:$('eNotes').value},'Saved');
+    $('del').onclick=async()=>{if(!confirm('Delete "'+e.title+'" and its files?'))return;await api('/api/entries/'+id,{method:'DELETE'});closeDrawer();toast('Deleted');refresh()};
+    drawer.querySelectorAll('.rm').forEach(b=>b.onclick=()=>patch(id,{recipes:e.patch_recipes.filter((_,i)=>i!=b.dataset.i)},'Recipe removed'));
+    $('addRecipe').onclick=()=>{let r;try{r=JSON.parse($('eRecipe').value)}catch(x){return toast('Recipe is not valid JSON',true)}patch(id,{recipes:[...e.patch_recipes,r]},'Recipe added')};
+    drawer.classList.add('open');scrim.classList.add('open');
+  }catch(err){toast(err.message,true)}
+}
+async function patch(id,body,msg){
+  try{await api('/api/entries/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});toast(msg);await refresh();openEntry(id)}
+  catch(err){toast(err.message,true)}
+}
+
+health();refresh();
+</script>
+</body>
+</html>
